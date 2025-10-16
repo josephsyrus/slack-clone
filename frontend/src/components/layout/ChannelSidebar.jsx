@@ -1,6 +1,9 @@
+// frontend/src/components/layout/ChannelSidebar.jsx
+
 import React, { useState } from "react";
-import { HashIcon, UserIcon } from "../ui/Icons";
+import { HashIcon, UserIcon, AddUserIcon, ChevronDownIcon } from "../ui/Icons";
 import UserPopup from "../ui/UserPopup";
+import WorkspaceSettingsMenu from "../ui/WorkspaceSettingsMenu";
 
 const ChannelSidebar = ({
   workspace,
@@ -11,8 +14,12 @@ const ChannelSidebar = ({
   user,
   isUserPopupVisible,
   onLogout,
+  onInviteClick,
+  onDeleteWorkspace,
+  onRenameWorkspace, // Add new prop
 }) => {
   const [newChannelName, setNewChannelName] = useState("");
+  const [isSettingsMenuVisible, setSettingsMenuVisible] = useState(false);
 
   const handleCreateChannel = (e) => {
     e.preventDefault();
@@ -24,12 +31,41 @@ const ChannelSidebar = ({
 
   if (!workspace) return null;
 
+  const handleDeleteClick = () => {
+    setSettingsMenuVisible(false);
+    onDeleteWorkspace();
+  };
+
+  const handleRenameClick = () => {
+    setSettingsMenuVisible(false);
+    onRenameWorkspace();
+  };
+
   return (
     <div className="channel-sidebar">
       {isUserPopupVisible && <UserPopup user={user} onLogout={onLogout} />}
       <div className="sidebar-header">
-        <h1>{workspace.name}</h1>
+        <div
+          className="sidebar-header-clickable"
+          onClick={() => setSettingsMenuVisible(!isSettingsMenuVisible)}
+        >
+          <h1>{workspace.name}</h1>
+          <ChevronDownIcon />
+        </div>
+        <button
+          className="invite-button"
+          title="Invite people"
+          onClick={onInviteClick}
+        >
+          <AddUserIcon />
+        </button>
       </div>
+      {isSettingsMenuVisible && (
+        <WorkspaceSettingsMenu
+          onRenameClick={handleRenameClick}
+          onDeleteClick={handleDeleteClick}
+        />
+      )}
       <div className="sidebar-content">
         <div className="sidebar-section">
           <h2>CHANNELS</h2>

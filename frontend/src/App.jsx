@@ -1,3 +1,5 @@
+// frontend/src/App.jsx
+
 import React, { useState } from "react";
 import { initialData } from "./data/mockData";
 import AuthPage from "./components/auth/AuthPage";
@@ -5,14 +7,27 @@ import WorkspaceSidebar from "./components/layout/WorkspaceSidebar";
 import ChannelSidebar from "./components/layout/ChannelSidebar";
 import Chat from "./components/chat/Chat";
 import AddWorkspacePopup from "./components/ui/AddWorkspacePopup";
+import InvitePeoplePopup from "./components/ui/InvitePeoplePopup";
+import AddWorkspaceChoicePopup from "./components/ui/AddWorkspaceChoicePopup";
+import JoinWorkspacePopup from "./components/ui/JoinWorkspacePopup";
+import ConfirmDeletePopup from "./components/ui/ConfirmDeletePopup";
+import RenameWorkspacePopup from "./components/ui/RenameWorkspacePopup"; // Import new popup
 
 function App() {
   // --- App State ---
   const [data, setData] = useState(initialData);
-  const [user, setUser] = useState(null); // No user logged in initially
+  const [user, setUser] = useState(null);
   const [isUserPopupVisible, setUserPopupVisible] = useState(false);
+  const [isInvitePopupVisible, setInvitePopupVisible] = useState(false);
+  const [isAddWorkspaceChoiceVisible, setAddWorkspaceChoiceVisible] =
+    useState(false);
   const [isAddWorkspacePopupVisible, setAddWorkspacePopupVisible] =
     useState(false);
+  const [isJoinWorkspacePopupVisible, setJoinWorkspacePopupVisible] =
+    useState(false);
+  const [isConfirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [isRenameWorkspaceVisible, setRenameWorkspaceVisible] = useState(false); // New state
+
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(
     Object.keys(initialData)[0]
   );
@@ -27,12 +42,11 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-    setUserPopupVisible(false); // Close popup on logout
+    setUserPopupVisible(false);
   };
 
   const handleSelectWorkspace = (workspaceId) => {
     setCurrentWorkspaceId(workspaceId);
-    //opening the first channel in the workspace
     const firstChannelId = data[workspaceId].channels[0]?.id;
     setCurrentChannelId(firstChannelId);
   };
@@ -45,22 +59,60 @@ function App() {
     const newWorkspaceId = `ws${Date.now()}`;
     const newChannelId = `c${Date.now()}`;
     const newWorkspace = {
+      id: newWorkspaceId,
       name,
       initial,
       channels: [{ id: newChannelId, name: "general" }],
       messages: { [newChannelId]: [] },
     };
-
     setData((prevData) => ({ ...prevData, [newWorkspaceId]: newWorkspace }));
     setCurrentWorkspaceId(newWorkspaceId);
     setCurrentChannelId(newChannelId);
   };
 
+  const handleJoinWorkspace = (workspaceId) => {
+    console.log(
+      `User ${user.uid} attempting to join workspace: ${workspaceId}`
+    );
+    alert(
+      `Join functionality is not yet implemented. \nAttempted to join: ${workspaceId}`
+    );
+  };
+
+  const handleDeleteWorkspace = () => {
+    const workspaceIdToDelete = currentWorkspaceId;
+    if (Object.keys(data).length <= 1) {
+      alert("You cannot delete the last workspace.");
+      setConfirmDeleteVisible(false);
+      return;
+    }
+    const newData = { ...data };
+    delete newData[workspaceIdToDelete];
+    setData(newData);
+    const remainingWorkspaceIds = Object.keys(newData);
+    const newCurrentWorkspaceId = remainingWorkspaceIds[0];
+    setCurrentWorkspaceId(newCurrentWorkspaceId);
+    const firstChannelId = newData[newCurrentWorkspaceId].channels[0]?.id;
+    setCurrentChannelId(firstChannelId);
+    setConfirmDeleteVisible(false);
+  };
+
+  // --- NEW: Rename Workspace Handler ---
+  const handleRenameWorkspace = (newName) => {
+    setData((prevData) => {
+      const newData = JSON.parse(JSON.stringify(prevData));
+      newData[currentWorkspaceId].name = newName;
+      // Also update the initial to match the new name
+      newData[currentWorkspaceId].initial = newName
+        .substring(0, 1)
+        .toUpperCase();
+      return newData;
+    });
+    setRenameWorkspaceVisible(false);
+  };
+
   const handleCreateChannel = (channelName) => {
-    const newChannel = {
-      id: `c${Date.now()}`,
-      name: channelName,
-    };
+    const newChannel = { id: `c${Date.now()}`, name: channelName };
     setData((prevData) => {
       const newData = JSON.parse(JSON.stringify(prevData));
       newData[currentWorkspaceId].channels.push(newChannel);
@@ -72,14 +124,12 @@ function App() {
 
   const handleSendMessage = (messageText) => {
     if (!user || !currentChannelId) return;
-
     const newMessage = {
       id: Date.now().toString(),
       text: messageText,
       userId: user.uid,
       createdAt: new Date().toISOString(),
     };
-
     setData((prevData) => {
       const newData = JSON.parse(JSON.stringify(prevData));
       const messages =
@@ -90,12 +140,8 @@ function App() {
     });
   };
 
-  // --- Render Logic ---
-  if (!user) {
-    return <AuthPage onLogin={handleLogin} />;
-  }
+  if (!user) return <AuthPage onLogin={handleLogin} />;
 
-  // --- Derived State for Logged-In View ---
   const currentWorkspace = data[currentWorkspaceId];
   const currentChannel = currentWorkspace?.channels.find(
     (c) => c.id === currentChannelId
@@ -109,7 +155,7 @@ function App() {
         data={data}
         currentWorkspaceId={currentWorkspaceId}
         onSelectWorkspace={handleSelectWorkspace}
-        onAddWorkspace={() => setAddWorkspacePopupVisible(true)}
+        onAddWorkspace={() => setAddWorkspaceChoiceVisible(true)}
       />
       <ChannelSidebar
         workspace={currentWorkspace}
@@ -120,6 +166,9 @@ function App() {
         onUserClick={() => setUserPopupVisible(!isUserPopupVisible)}
         isUserPopupVisible={isUserPopupVisible}
         onLogout={handleLogout}
+        onInviteClick={() => setInvitePopupVisible(true)}
+        onDeleteWorkspace={() => setConfirmDeleteVisible(true)}
+        onRenameWorkspace={() => setRenameWorkspaceVisible(true)} // Pass handler
       />
       <Chat
         channel={currentChannel}
@@ -128,10 +177,51 @@ function App() {
         user={user}
       />
 
+      {/* --- POPUPS --- */}
+      {isAddWorkspaceChoiceVisible && (
+        <AddWorkspaceChoicePopup
+          onClose={() => setAddWorkspaceChoiceVisible(false)}
+          onChooseCreate={() => {
+            setAddWorkspaceChoiceVisible(false);
+            setAddWorkspacePopupVisible(true);
+          }}
+          onChooseJoin={() => {
+            setAddWorkspaceChoiceVisible(false);
+            setJoinWorkspacePopupVisible(true);
+          }}
+        />
+      )}
       {isAddWorkspacePopupVisible && (
         <AddWorkspacePopup
           onClose={() => setAddWorkspacePopupVisible(false)}
           onCreate={handleCreateWorkspace}
+        />
+      )}
+      {isJoinWorkspacePopupVisible && (
+        <JoinWorkspacePopup
+          onClose={() => setJoinWorkspacePopupVisible(false)}
+          onJoin={handleJoinWorkspace}
+        />
+      )}
+      {isInvitePopupVisible && (
+        <InvitePeoplePopup
+          workspace={currentWorkspace}
+          onClose={() => setInvitePopupVisible(false)}
+        />
+      )}
+      {isConfirmDeleteVisible && (
+        <ConfirmDeletePopup
+          workspaceName={currentWorkspace.name}
+          onConfirm={handleDeleteWorkspace}
+          onClose={() => setConfirmDeleteVisible(false)}
+        />
+      )}
+      {/* Conditionally render rename popup */}
+      {isRenameWorkspaceVisible && (
+        <RenameWorkspacePopup
+          currentWorkspaceName={currentWorkspace.name}
+          onClose={() => setRenameWorkspaceVisible(false)}
+          onRename={handleRenameWorkspace}
         />
       )}
     </div>

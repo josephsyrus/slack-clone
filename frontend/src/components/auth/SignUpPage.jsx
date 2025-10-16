@@ -1,15 +1,25 @@
+// frontend/src/components/auth/SignUpPage.jsx
+
 import React, { useState } from "react";
 
 const SignUpPage = ({ onLogin, onSwitchToSignIn }) => {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState(""); // Add state for email
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Frontend only: just log in the user if passwords match and fields are not empty
-    if (username.trim() && password.trim() && password === confirmPassword) {
-      onLogin({ uid: username.trim() });
+    // Frontend only: just log in the user if fields are not empty and passwords match
+    if (
+      username.trim() &&
+      email.trim() && // Add email to validation
+      password.trim() &&
+      password === confirmPassword
+    ) {
+      // In a real app, you'd send username, email, and password to the backend.
+      // Here, we just pass the username to the onLogin handler.
+      onLogin({ uid: username.trim(), email: email.trim() });
     }
   };
 
@@ -27,6 +37,20 @@ const SignUpPage = ({ onLogin, onSwitchToSignIn }) => {
             placeholder="Choose a username"
           />
         </div>
+
+        {/* New Email Field */}
+        <div className="input-group">
+          <label htmlFor="email-signup">Email Address</label>
+          <input
+            id="email-signup"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter your email"
+          />
+        </div>
+        {/* End of New Email Field */}
+
         <div className="input-group">
           <label htmlFor="password-signup">Password</label>
           <input

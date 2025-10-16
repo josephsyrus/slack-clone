@@ -1,5 +1,8 @@
+// frontend/src/data/mockData.js
+
 export const initialData = {
   ws1: {
+    id: "ws1", // Add this ID
     name: "DBMS",
     initial: "D",
     channels: [
@@ -30,9 +33,11 @@ export const initialData = {
           createdAt: new Date(),
         },
       ],
+      c3: [], // Ensure this channel has an empty messages array
     },
   },
   ws2: {
+    id: "ws2", // Add this ID
     name: "OS",
     initial: "O",
     channels: [
