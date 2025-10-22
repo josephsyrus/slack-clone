@@ -54,7 +54,9 @@ function App() {
   useEffect(() => {
     if (user) {
       //establishing connection to the backend and setting the current attribute in the ref
-      socket.current = io("http://localhost:3001");
+      const SOCKET_URL =
+        import.meta.env.VITE_API_URL || "http://localhost:3001";
+      socket.current = io(SOCKET_URL);
       //on connection print connected
       socket.current.on("connect", () =>
         console.log("Socket connected:", socket.current.id)

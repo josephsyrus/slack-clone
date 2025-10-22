@@ -2,7 +2,7 @@ import axios from "axios";
 
 //creating the axios instance, which need not be repeated anywhere else
 const api = axios.create({
-  baseURL: "http://localhost:3001/api",
+  baseURL: `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api`,
 });
 
 //interceptors are functions that run prior to sending the request
