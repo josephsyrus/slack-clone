@@ -1,5 +1,3 @@
-// frontend/src/components/ui/AddWorkspaceChoicePopup.jsx
-
 import React from "react";
 
 const AddWorkspaceChoicePopup = ({ onClose, onChooseCreate, onChooseJoin }) => {

@@ -3,7 +3,7 @@ import ChatHeader from "./ChatHeader";
 import Message from "./Message";
 import { SendIcon } from "../ui/Icons";
 
-const Chat = ({ channel, messages, onSendMessage, user }) => {
+const Chat = ({ channel, messages, onSendMessage, user, workspace }) => {
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef(null);
 
@@ -21,9 +21,15 @@ const Chat = ({ channel, messages, onSendMessage, user }) => {
 
   return (
     <div className="chat-container">
-      <ChatHeader channel={channel} />
+      <ChatHeader channel={channel} workspace={workspace} />
       <div className="messages-area">
-        {channel ? (
+        {!workspace ? (
+          <div className="placeholder-container">
+            <p className="placeholder-text">
+              Create or join a workspace to get started!
+            </p>
+          </div>
+        ) : channel ? (
           messages.length > 0 ? (
             <div>
               {messages.map((msg) => (
@@ -34,14 +40,14 @@ const Chat = ({ channel, messages, onSendMessage, user }) => {
           ) : (
             <div className="placeholder-container">
               <p className="placeholder-text">
-                Be the first to say something in #{channel.name}!
+                Be the first to say something in #{channel.channel_name}!
               </p>
             </div>
           )
         ) : (
           <div className="placeholder-container">
             <p className="placeholder-text">
-              Select a channel to start chatting or create a new one.
+              Select a channel to start chatting.
             </p>
           </div>
         )}
@@ -53,7 +59,7 @@ const Chat = ({ channel, messages, onSendMessage, user }) => {
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={`Message #${channel.name}`}
+              placeholder={`Message #${channel.channel_name}`}
               className="chat-input"
             />
             <button type="submit" className="send-button">

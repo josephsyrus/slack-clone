@@ -1,11 +1,12 @@
-import React from "react";
-
 const UserPopup = ({ user, onLogout }) => {
   return (
     <div className="user-popup">
       <div className="user-popup-header">
-        <div className="user-popup-username" title={user.uid}>
-          {user.uid}
+        <div className="user-popup-username" title={user.username}>
+          {user.username}
+        </div>
+        <div className="user-popup-email" title={user.email}>
+          {user.email}
         </div>
         <div className="user-popup-status">Online</div>
       </div>

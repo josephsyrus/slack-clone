@@ -1,19 +1,33 @@
 import React, { useState } from "react";
+import api from "../../api";
 
 const SignInPage = ({ onLogin, onSwitchToSignUp }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (username.trim() && password.trim()) {
-      onLogin({ uid: username.trim() });
+    setError(""); // Clear previous errors
+    if (!username.trim() || !password.trim()) {
+      setError("Username and password are required.");
+      return;
+    }
+    try {
+      const response = await api.post("/users/signin", { username, password });
+      localStorage.setItem("token", response.data.token);
+      onLogin();
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Sign in failed. Please try again."
+      );
     }
   };
 
   return (
     <div className="popup-box">
       <h1 className="popup-title">Sign In to Slack</h1>
+      {error && <p className="auth-error">{error}</p>}{" "}
       <form onSubmit={handleSubmit} className="popup-form">
         <div className="input-group">
           <label htmlFor="username">Username</label>

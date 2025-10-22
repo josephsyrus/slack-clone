@@ -1,7 +1,3 @@
-// frontend/src/components/ui/Icons.jsx
-
-import React from "react";
-
 export const HashIcon = () => (
   <svg
     className="icon"
@@ -104,7 +100,6 @@ export const TrashIcon = () => (
   </svg>
 );
 
-// Add this new icon
 export const RenameIcon = () => (
   <svg
     className="icon"

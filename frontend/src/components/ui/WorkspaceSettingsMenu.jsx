@@ -1,6 +1,3 @@
-// frontend/src/components/ui/WorkspaceSettingsMenu.jsx
-
-import React from "react";
 import { TrashIcon, RenameIcon } from "./Icons";
 
 const WorkspaceSettingsMenu = ({ onRenameClick, onDeleteClick }) => {

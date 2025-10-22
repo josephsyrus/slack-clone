@@ -1,5 +1,3 @@
-// frontend/src/components/ui/RenameWorkspacePopup.jsx
-
 import React, { useState } from "react";
 
 const RenameWorkspacePopup = ({ currentWorkspaceName, onClose, onRename }) => {

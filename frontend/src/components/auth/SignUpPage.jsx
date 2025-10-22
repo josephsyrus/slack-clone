@@ -1,31 +1,38 @@
-// frontend/src/components/auth/SignUpPage.jsx
-
 import React, { useState } from "react";
-
+import api from "../../api";
 const SignUpPage = ({ onLogin, onSwitchToSignIn }) => {
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState(""); // Add state for email
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Frontend only: just log in the user if fields are not empty and passwords match
-    if (
-      username.trim() &&
-      email.trim() && // Add email to validation
-      password.trim() &&
-      password === confirmPassword
-    ) {
-      // In a real app, you'd send username, email, and password to the backend.
-      // Here, we just pass the username to the onLogin handler.
-      onLogin({ uid: username.trim(), email: email.trim() });
+    setError("");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    try {
+      const response = await api.post("/users/signup", {
+        username,
+        email,
+        password,
+      });
+      localStorage.setItem("token", response.data.token);
+      onLogin();
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Sign up failed. Please try again."
+      );
     }
   };
 
   return (
     <div className="popup-box">
       <h1 className="popup-title">Create an Account</h1>
+      {error && <p className="auth-error">{error}</p>}
       <form onSubmit={handleSubmit} className="popup-form">
         <div className="input-group">
           <label htmlFor="username-signup">Username</label>
@@ -37,8 +44,6 @@ const SignUpPage = ({ onLogin, onSwitchToSignIn }) => {
             placeholder="Choose a username"
           />
         </div>
-
-        {/* New Email Field */}
         <div className="input-group">
           <label htmlFor="email-signup">Email Address</label>
           <input
@@ -49,8 +54,6 @@ const SignUpPage = ({ onLogin, onSwitchToSignIn }) => {
             placeholder="Enter your email"
           />
         </div>
-        {/* End of New Email Field */}
-
         <div className="input-group">
           <label htmlFor="password-signup">Password</label>
           <input

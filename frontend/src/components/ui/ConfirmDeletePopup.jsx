@@ -1,5 +1,3 @@
-// frontend/src/components/ui/ConfirmDeletePopup.jsx
-
 import React from "react";
 
 const ConfirmDeletePopup = ({ workspaceName, onConfirm, onClose }) => {

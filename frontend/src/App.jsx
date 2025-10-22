@@ -1,7 +1,7 @@
-// frontend/src/App.jsx
+import React, { useState, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
+import api from "./api";
 
-import React, { useState } from "react";
-import { initialData } from "./data/mockData";
 import AuthPage from "./components/auth/AuthPage";
 import WorkspaceSidebar from "./components/layout/WorkspaceSidebar";
 import ChannelSidebar from "./components/layout/ChannelSidebar";
@@ -11,217 +11,340 @@ import InvitePeoplePopup from "./components/ui/InvitePeoplePopup";
 import AddWorkspaceChoicePopup from "./components/ui/AddWorkspaceChoicePopup";
 import JoinWorkspacePopup from "./components/ui/JoinWorkspacePopup";
 import ConfirmDeletePopup from "./components/ui/ConfirmDeletePopup";
-import RenameWorkspacePopup from "./components/ui/RenameWorkspacePopup"; // Import new popup
+import RenameWorkspacePopup from "./components/ui/RenameWorkspacePopup";
+import Toast from "./components/ui/Toast";
+
+//extracting payload from jwt and returning as a js object
+const decodeToken = (token) => {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch (e) {
+    return null;
+  }
+};
 
 function App() {
-  // --- App State ---
-  const [data, setData] = useState(initialData);
-  const [user, setUser] = useState(null);
-  const [isUserPopupVisible, setUserPopupVisible] = useState(false);
-  const [isInvitePopupVisible, setInvitePopupVisible] = useState(false);
-  const [isAddWorkspaceChoiceVisible, setAddWorkspaceChoiceVisible] =
-    useState(false);
-  const [isAddWorkspacePopupVisible, setAddWorkspacePopupVisible] =
-    useState(false);
-  const [isJoinWorkspacePopupVisible, setJoinWorkspacePopupVisible] =
-    useState(false);
-  const [isConfirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [isRenameWorkspaceVisible, setRenameWorkspaceVisible] = useState(false); // New state
+  const [user, setUser] = useState(null); //stores currently logged in user info as object
+  const [workspaces, setWorkspaces] = useState({}); //stores all workspaces user is part of
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null); //state for selected workspaceid
+  const [currentChannelId, setCurrentChannelId] = useState(null); //state for selected channelid within a workspace
+  const [messages, setMessages] = useState({}); //list of messages in the channel?
+  const socket = useRef(null); //useRef to prevent rerender on socket connection
+  const [toast, setToast] = useState(null); //state of toast popup
+  //object of popup states for different popups
+  const [popups, setPopups] = useState({
+    user: false,
+    invite: false,
+    addChoice: false,
+    addWorkspace: false,
+    joinWorkspace: false,
+    confirmDelete: false,
+    renameWorkspace: false,
+  });
 
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(
-    Object.keys(initialData)[0]
-  );
-  const [currentChannelId, setCurrentChannelId] = useState(
-    initialData[Object.keys(initialData)[0]].channels[0].id
-  );
+  //triggers once on render, usefull for reloading the page and checking for logged in user using the jwt
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      handleLogin();
+    }
+  }, []);
 
-  // --- Handlers ---
-  const handleLogin = (loggedInUser) => {
-    setUser(loggedInUser);
+  //triggers when there is change in user state
+  useEffect(() => {
+    if (user) {
+      //establishing connection to the backend and setting the current attribute in the ref
+      socket.current = io("http://localhost:3001");
+      //on connection print connected
+      socket.current.on("connect", () =>
+        console.log("Socket connected:", socket.current.id)
+      );
+      //receiveMessage is a custom event with a newMessage property, which adds the new message to old list of messages from the same channelId
+      socket.current.on("receiveMessage", (newMessage) => {
+        setMessages((prev) => ({
+          ...prev,
+          //lhs[] is for key, rhs[] is for array
+          [newMessage.channelId]: [
+            ...(prev[newMessage.channelId] || []),
+            newMessage,
+          ],
+        }));
+      });
+      //triggers when user logs out (cleanup code)
+      return () => {
+        console.log("Disconnecting socket...");
+        socket.current.disconnect();
+      };
+    }
+  }, [user]);
+
+  //triggers when user switches between workspaces
+  useEffect(() => {
+    if (socket.current && currentWorkspaceId) {
+      //joinWorkspace tells the socket which workspace the user is currently in
+      socket.current.emit("joinWorkspace", currentWorkspaceId);
+      fetchWorkspaceData(currentWorkspaceId);
+    } else if (!currentWorkspaceId) {
+      //sets the messages and channel to null if no workspace selected
+      setMessages({});
+      setCurrentChannelId(null);
+    }
+  }, [currentWorkspaceId]);
+
+  const fetchWorkspaces = async () => {
+    try {
+      const res = await api.get("/workspaces");
+      const workspacesData = res.data.reduce((acc, ws) => {
+        acc[ws.workspace_id] = {
+          id: ws.workspace_id,
+          name: ws.workspace_name,
+          owner_id: ws.owner_id,
+          initial: ws.workspace_name.substring(0, 1).toUpperCase(),
+        };
+        return acc;
+      }, {});
+      setWorkspaces(workspacesData);
+
+      const workspaceIds = Object.keys(workspacesData);
+      if (workspaceIds.length > 0) {
+        if (!currentWorkspaceId || !workspacesData[currentWorkspaceId]) {
+          setCurrentWorkspaceId(workspaceIds[0]);
+        }
+      } else {
+        setCurrentWorkspaceId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching workspaces:", error);
+    }
+  };
+
+  const fetchWorkspaceData = async (workspaceId) => {
+    try {
+      const res = await api.get(`/workspaces/${workspaceId}`);
+      const fetchedWorkspace = res.data;
+
+      setWorkspaces((prev) => ({
+        ...prev,
+        [workspaceId]: {
+          ...prev[workspaceId],
+          id: fetchedWorkspace.workspace_id,
+          name: fetchedWorkspace.workspace_name,
+          owner_id: fetchedWorkspace.owner_id,
+          channels: fetchedWorkspace.channels,
+        },
+      }));
+
+      const messagesByChannel = {};
+      fetchedWorkspace.channels.forEach((channel) => {
+        messagesByChannel[channel.channel_id] = channel.messages;
+      });
+      setMessages(messagesByChannel);
+
+      // Set the general channel as current, or the first one if it doesn't exist
+      const generalChannel = fetchedWorkspace.channels.find(
+        (c) => c.channel_name === "general"
+      );
+      if (generalChannel) {
+        setCurrentChannelId(generalChannel.channel_id);
+      } else if (fetchedWorkspace.channels.length > 0) {
+        setCurrentChannelId(fetchedWorkspace.channels[0].channel_id);
+      } else {
+        setCurrentChannelId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching workspace data:", error);
+    }
+  };
+
+  const handleLogin = () => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      const decodedUser = decodeToken(token);
+      setUser(decodedUser);
+      fetchWorkspaces();
+    }
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
     setUser(null);
-    setUserPopupVisible(false);
+    setWorkspaces({});
+    setCurrentWorkspaceId(null);
+    setCurrentChannelId(null);
+    setMessages({});
+    setPopups({ ...popups, user: false });
   };
 
-  const handleSelectWorkspace = (workspaceId) => {
-    setCurrentWorkspaceId(workspaceId);
-    const firstChannelId = data[workspaceId].channels[0]?.id;
-    setCurrentChannelId(firstChannelId);
-  };
-
-  const handleSelectChannel = (channel) => {
-    setCurrentChannelId(channel.id);
-  };
-
-  const handleCreateWorkspace = (name, initial) => {
-    const newWorkspaceId = `ws${Date.now()}`;
-    const newChannelId = `c${Date.now()}`;
-    const newWorkspace = {
-      id: newWorkspaceId,
-      name,
-      initial,
-      channels: [{ id: newChannelId, name: "general" }],
-      messages: { [newChannelId]: [] },
-    };
-    setData((prevData) => ({ ...prevData, [newWorkspaceId]: newWorkspace }));
-    setCurrentWorkspaceId(newWorkspaceId);
-    setCurrentChannelId(newChannelId);
-  };
-
-  const handleJoinWorkspace = (workspaceId) => {
-    console.log(
-      `User ${user.uid} attempting to join workspace: ${workspaceId}`
-    );
-    alert(
-      `Join functionality is not yet implemented. \nAttempted to join: ${workspaceId}`
-    );
-  };
-
-  const handleDeleteWorkspace = () => {
-    const workspaceIdToDelete = currentWorkspaceId;
-    if (Object.keys(data).length <= 1) {
-      alert("You cannot delete the last workspace.");
-      setConfirmDeleteVisible(false);
-      return;
+  const handleCreateWorkspace = async (name) => {
+    try {
+      const res = await api.post("/workspaces", { name });
+      const newWorkspace = res.data;
+      await fetchWorkspaces();
+      setCurrentWorkspaceId(newWorkspace.workspace_id);
+      setPopups({ ...popups, addWorkspace: false });
+    } catch (error) {
+      console.error("Error creating workspace:", error);
     }
-    const newData = { ...data };
-    delete newData[workspaceIdToDelete];
-    setData(newData);
-    const remainingWorkspaceIds = Object.keys(newData);
-    const newCurrentWorkspaceId = remainingWorkspaceIds[0];
-    setCurrentWorkspaceId(newCurrentWorkspaceId);
-    const firstChannelId = newData[newCurrentWorkspaceId].channels[0]?.id;
-    setCurrentChannelId(firstChannelId);
-    setConfirmDeleteVisible(false);
   };
 
-  // --- NEW: Rename Workspace Handler ---
-  const handleRenameWorkspace = (newName) => {
-    setData((prevData) => {
-      const newData = JSON.parse(JSON.stringify(prevData));
-      newData[currentWorkspaceId].name = newName;
-      // Also update the initial to match the new name
-      newData[currentWorkspaceId].initial = newName
-        .substring(0, 1)
-        .toUpperCase();
-      return newData;
-    });
-    setRenameWorkspaceVisible(false);
+  const handleJoinWorkspace = async (workspaceId) => {
+    try {
+      await api.post("/workspaces/join", { workspaceId });
+      await fetchWorkspaces();
+      setCurrentWorkspaceId(workspaceId);
+      setPopups({ ...popups, joinWorkspace: false });
+    } catch (error) {
+      setToast({
+        message: error.response?.data?.message || "Could not join workspace.",
+      });
+    }
   };
 
-  const handleCreateChannel = (channelName) => {
-    const newChannel = { id: `c${Date.now()}`, name: channelName };
-    setData((prevData) => {
-      const newData = JSON.parse(JSON.stringify(prevData));
-      newData[currentWorkspaceId].channels.push(newChannel);
-      newData[currentWorkspaceId].messages[newChannel.id] = [];
-      return newData;
-    });
-    setCurrentChannelId(newChannel.id);
+  const handleRenameWorkspace = async (newName) => {
+    try {
+      await api.put(`/workspaces/${currentWorkspaceId}`, { name: newName });
+      await fetchWorkspaces();
+      await fetchWorkspaceData(currentWorkspaceId);
+      setPopups({ ...popups, renameWorkspace: false });
+    } catch (error) {
+      console.error("Error renaming workspace:", error);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    try {
+      await api.delete(`/workspaces/${currentWorkspaceId}`);
+      await fetchWorkspaces();
+      setPopups({ ...popups, confirmDelete: false });
+    } catch (error) {
+      console.error("Error deleting workspace:", error);
+    }
   };
 
   const handleSendMessage = (messageText) => {
-    if (!user || !currentChannelId) return;
-    const newMessage = {
-      id: Date.now().toString(),
-      text: messageText,
-      userId: user.uid,
-      createdAt: new Date().toISOString(),
-    };
-    setData((prevData) => {
-      const newData = JSON.parse(JSON.stringify(prevData));
-      const messages =
-        newData[currentWorkspaceId].messages[currentChannelId] || [];
-      messages.push(newMessage);
-      newData[currentWorkspaceId].messages[currentChannelId] = messages;
-      return newData;
+    if (!socket.current || !user || !currentChannelId || !currentWorkspaceId)
+      return;
+    socket.current.emit("sendMessage", {
+      content: messageText,
+      channelId: currentChannelId,
+      userId: user.id,
+      workspaceId: currentWorkspaceId,
     });
   };
 
-  if (!user) return <AuthPage onLogin={handleLogin} />;
+  const handleCreateChannel = async (channelName) => {
+    if (!currentWorkspaceId) return;
+    const sanitizedName = channelName.toLowerCase().replace(/\s+/g, "-");
+    if (!sanitizedName) return;
 
-  const currentWorkspace = data[currentWorkspaceId];
-  const currentChannel = currentWorkspace?.channels.find(
-    (c) => c.id === currentChannelId
+    try {
+      const res = await api.post(`/workspaces/${currentWorkspaceId}/channels`, {
+        channelName: sanitizedName,
+      });
+      const newChannel = res.data;
+      // Re-fetch workspace data to get the updated channel list
+      await fetchWorkspaceData(currentWorkspaceId);
+      // Switch to the new channel
+      setCurrentChannelId(newChannel.channel_id);
+    } catch (error) {
+      setToast({
+        message: error.response?.data?.message || "Could not create channel.",
+      });
+    }
+  };
+
+  if (!user) {
+    return <AuthPage onLogin={handleLogin} />;
+  }
+
+  const currentWorkspace = currentWorkspaceId
+    ? workspaces[currentWorkspaceId]
+    : null;
+  const currentChannel = currentWorkspace?.channels?.find(
+    (c) => c.channel_id === currentChannelId
   );
-  const messagesForCurrentChannel =
-    currentWorkspace?.messages[currentChannelId] || [];
+  const messagesForCurrentChannel = messages[currentChannelId] || [];
 
   return (
     <div className="app-container">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <WorkspaceSidebar
-        data={data}
+        data={workspaces}
         currentWorkspaceId={currentWorkspaceId}
-        onSelectWorkspace={handleSelectWorkspace}
-        onAddWorkspace={() => setAddWorkspaceChoiceVisible(true)}
+        onSelectWorkspace={setCurrentWorkspaceId}
+        onAddWorkspace={() => setPopups({ ...popups, addChoice: true })}
       />
       <ChannelSidebar
         workspace={currentWorkspace}
-        onSelectChannel={handleSelectChannel}
+        onSelectChannel={(channel) => setCurrentChannelId(channel.channel_id)}
         onCreateChannel={handleCreateChannel}
         currentChannelId={currentChannelId}
         user={user}
-        onUserClick={() => setUserPopupVisible(!isUserPopupVisible)}
-        isUserPopupVisible={isUserPopupVisible}
+        isUserPopupVisible={popups.user}
         onLogout={handleLogout}
-        onInviteClick={() => setInvitePopupVisible(true)}
-        onDeleteWorkspace={() => setConfirmDeleteVisible(true)}
-        onRenameWorkspace={() => setRenameWorkspaceVisible(true)} // Pass handler
+        onUserClick={() => setPopups({ ...popups, user: !popups.user })}
+        onInviteClick={() => setPopups({ ...popups, invite: true })}
+        onDeleteWorkspace={() => setPopups({ ...popups, confirmDelete: true })}
+        onRenameWorkspace={() =>
+          setPopups({ ...popups, renameWorkspace: true })
+        }
       />
       <Chat
+        workspace={currentWorkspace}
         channel={currentChannel}
         messages={messagesForCurrentChannel}
         onSendMessage={handleSendMessage}
         user={user}
       />
 
-      {/* --- POPUPS --- */}
-      {isAddWorkspaceChoiceVisible && (
+      {popups.addChoice && (
         <AddWorkspaceChoicePopup
-          onClose={() => setAddWorkspaceChoiceVisible(false)}
-          onChooseCreate={() => {
-            setAddWorkspaceChoiceVisible(false);
-            setAddWorkspacePopupVisible(true);
-          }}
-          onChooseJoin={() => {
-            setAddWorkspaceChoiceVisible(false);
-            setJoinWorkspacePopupVisible(true);
-          }}
+          onClose={() => setPopups({ ...popups, addChoice: false })}
+          onChooseCreate={() =>
+            setPopups({ ...popups, addChoice: false, addWorkspace: true })
+          }
+          onChooseJoin={() =>
+            setPopups({ ...popups, addChoice: false, joinWorkspace: true })
+          }
         />
       )}
-      {isAddWorkspacePopupVisible && (
+      {popups.addWorkspace && (
         <AddWorkspacePopup
-          onClose={() => setAddWorkspacePopupVisible(false)}
+          onClose={() => setPopups({ ...popups, addWorkspace: false })}
           onCreate={handleCreateWorkspace}
         />
       )}
-      {isJoinWorkspacePopupVisible && (
+      {popups.joinWorkspace && (
         <JoinWorkspacePopup
-          onClose={() => setJoinWorkspacePopupVisible(false)}
+          onClose={() => setPopups({ ...popups, joinWorkspace: false })}
           onJoin={handleJoinWorkspace}
         />
       )}
-      {isInvitePopupVisible && (
+      {popups.invite && currentWorkspace && (
         <InvitePeoplePopup
           workspace={currentWorkspace}
-          onClose={() => setInvitePopupVisible(false)}
+          onClose={() => setPopups({ ...popups, invite: false })}
         />
       )}
-      {isConfirmDeleteVisible && (
+      {popups.confirmDelete && currentWorkspace && (
         <ConfirmDeletePopup
           workspaceName={currentWorkspace.name}
           onConfirm={handleDeleteWorkspace}
-          onClose={() => setConfirmDeleteVisible(false)}
+          onClose={() => setPopups({ ...popups, confirmDelete: false })}
         />
       )}
-      {/* Conditionally render rename popup */}
-      {isRenameWorkspaceVisible && (
+      {popups.renameWorkspace && currentWorkspace && (
         <RenameWorkspacePopup
           currentWorkspaceName={currentWorkspace.name}
-          onClose={() => setRenameWorkspaceVisible(false)}
           onRename={handleRenameWorkspace}
+          onClose={() => setPopups({ ...popups, renameWorkspace: false })}
         />
       )}
     </div>

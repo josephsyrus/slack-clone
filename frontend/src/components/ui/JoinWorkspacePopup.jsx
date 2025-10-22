@@ -1,5 +1,3 @@
-// frontend/src/components/ui/JoinWorkspacePopup.jsx
-
 import React, { useState } from "react";
 
 const JoinWorkspacePopup = ({ onClose, onJoin }) => {

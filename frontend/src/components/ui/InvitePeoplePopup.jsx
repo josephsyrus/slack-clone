@@ -1,9 +1,6 @@
-// frontend/src/components/ui/InvitePeoplePopup.jsx
-
 import React, { useState } from "react";
 
 const InvitePeoplePopup = ({ workspace, onClose }) => {
-  // This line has been corrected
   const [copyButtonText, setCopyButtonText] = useState("Copy ID");
 
   const handleCopy = () => {
